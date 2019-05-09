@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="18.11.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c></c>
+<c>*文字识别</c>
+<c>*1.采集图像</c>
+<c>*2.分割图像//预处理--1.对比 ，select，phamsize，equ_hiso_imige，灰度形态学  2.去噪声·均值，中值，高斯</c>
+<c>*3.训练学习，形成trf（图片和字符关联）文件</c>
+<c>*4.识别</c>
+<c></c>
+<c>*********************************************************</c>
+<c>*1.读入图像</c>
+<l>read_image (Image, 'printer_chip/printer_chip_01')</l>
+<c>**灰度化</c>
+<l>rgb1_to_gray (Image, GrayImage)</l>
+<c>**预处理进行线性灰度变换选取我们所要提取的汉字</c>
+<l>scale_image (GrayImage, ImageScaled, 0.01, 0)</l>
+<c>*2.分割字符（1.几何矫正2.分割，让每个字体形成一个联通域）</c>
+<c>*二值化</c>
+<l>threshold (ImageScaled, Region, 128, 255) </l>
+<c>*断开页面进行区域拆分</c>
+<l>connection (Region, ConnectedRegions)</l>
+<c>*根据面积提取字符特征（特征直方图添加）</c>
+<l>select_shape (ConnectedRegions, SelectedRegions, 'area', 'and', 150, 99999)</l>
+<c>*因为照片中的字体可能是环形或斜着的，要把字符矫正</c>
+<c>*首先因为字符都是单独的，进行字符联合变为一个区域</c>
+<l>union1 (SelectedRegions, RegionUnion)</l>
+<c>*让全部区域变为带方向的矩形</c>
+<l>shape_trans (RegionUnion, RegionTrans, 'convex')</l>
+<c>*求出区域角度</c>
+<l>orientation_region (RegionTrans, Phi)</l>
+<c>*求出面积和中心点的行列坐标，稍后跟进中心点进行旋转</c>
+<l>area_center (RegionTrans, Area1, Row1, Column1)</l>
+<c>*根据中心点求出旋转矩阵，作用到联合区域上</c>
+<l>vector_angle_to_rigid (Row1, Column1, Phi, Row1, Column1, Phi, HomMat2D)</l>
+<c>*作用到区域上进行区域的旋转</c>
+<l>affine_trans_region (RegionTrans, RegionAffineTrans, HomMat2D, 'nearest_neighbor')</l>
+<c>*在把图像进行旋转</c>
+<l>affine_trans_image (ImageScaled, ImageAffineTrans, HomMat2D, 'constant', 'false')</l>
+<c>*进行抠图</c>
+<l>reduce_domain (ImageAffineTrans, RegionAffineTrans, ImageReduced)</l>
+<c>*进行灰度调整</c>
+<l>rgb1_to_gray (ImageReduced, GrayImage1)</l>
+<c>*二值化</c>
+<l>threshold (GrayImage1, Region1, 128, 255)</l>
+<c>*断开联通区域进行拆分</c>
+<l>connection (Region1, ConnectedRegions1)</l>
+<c>*对于这几个字进行排序</c>
+<l>sort_region (ConnectedRegions1, SortedRegions, 'first_point', 'true', 'row')</l>
+<c>*计算连通域个数</c>
+<l>count_obj (SortedRegions, Number)</l>
+<c>*选中每个连通域看一看是否正确</c>
+<l>for i := 1 to Number by 1</l>
+<l>    select_obj (SortedRegions, ObjectSelected, i)</l>
+<l>endfor</l>
+<c></c>
+<c>*3.形成TRF文件，将字符和图像相关联</c>
+<l>words := ['编','著']</l>
+<c>*trf文件将图片上的每个字和words中对应的自相关连</c>
+<l>TrainFile := 'D://word.trf'</l>
+<c></c>
+<l>for i := 1 to Number by 1</l>
+<l>    select_obj (ObjectSelected, ObjectSelected1, 1)</l>
+<c>    *执行将文字和对应图片相关联</c>
+<l>    append_ocr_trainf (ObjectSelected1, GrayImage1, words[i-1], TrainFile)</l>
+<l>endfor</l>
+<c></c>
+<l>FontFile := 'D://word.ocm'</l>
+<c>*读入TRF 文件，找到有哪些名字和数量的多少</c>
+<l>read_ocr_trainf_names (TrainFile, CharacterNames, CharacterCount)</l>
+<c></c>
+<l>NumHidden := 20</l>
+<c></c>
+<c>*1.创建神经网络分类器</c>
+<c>*参数（被分割字符宽度，被分割字符的高度，差值算法，被分类的特征，要被读入的所有字符，神经网络隐式节点的个数，用作被变换特征的类型，变换特征的数量，随机种子点的值，分类器的句柄）</c>
+<l>create_ocr_class_mlp (8, 10, 'constant', 'default', CharacterNames, 80, 'none', 10, 42, OCRHandle)</l>
+<c>*2.训练分类器</c>
+<c>*参数（分类器句柄，输入文件，迭代次数，权重差的阈值，平均误差的阈值，训练数据中的平均误差，训练数据中采用的优化算法（平均误差优化算法））</c>
+<l>trainf_ocr_class_mlp (OCRHandle, 'ocr.trf', 200, 1, 0.01, Error, ErrorLog)</l>
+<c>*3.保存OMC文件</c>
+<c>*写入文件为OMC文件</c>
+<l>write_ocr_class_mlp (OCRHandle, Error)</l>
+<c>*4.清除句柄</c>
+<l>clear_ocr_class_mlp (OCRHandle)</l>
+<c></c>
+<c>*识别文字</c>
+<c>*读入训练好的数据</c>
+<l>read_ocr_class_mlp (FontFile, OCRHandle1)</l>
+<c>*吧要识别的数据也经过前面处理数据时的过程处理一遍</c>
+<c>************************</c>
+<c>******此处省略</c>
+<c>******************************</c>
+<c>*要识别的数据经过处理后带入识别模型进行识别的出结果</c>
+<c>*参数（提取分割时的区域，裁剪之后的图像，读入好的模型句柄，结果，准确率）</c>
+<l>do_ocr_multi_class_mlp (ObjectSelected1, GrayImage1, OCRHandle1, Class, Confidence)</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
