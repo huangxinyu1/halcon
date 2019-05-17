@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="18.11.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<l>list_files ('C:/Users/Administrator/Desktop/波纹管识别/刮伤/测试集', ['files','follow_links'], ImageFiles)</l>
+<l>tuple_regexp_select (ImageFiles, ['\\.(tif|tiff|gif|bmp|jpg|jpeg|jp2|png|pcx|pgm|ppm|pbm|xwd|ima|hobj)$','ignore_case'], ImageFiles)</l>
+<c></c>
+<c></c>
+<l>for Index := 0 to |ImageFiles| - 1 by 1</l>
+<l>    read_image (Image, ImageFiles[Index])</l>
+<c></c>
+<l>    threshold(Image, Region1, 1, 255)</l>
+<l>    reduce_domain(Image, Region1, ImageReduced2)</l>
+<l>    crop_domain(ImageReduced2, ImagePart2)</l>
+<l>    cooc_feature_image (Region1, ImagePart2, 6, 0, Energy3, Correlation3, Homogeneity3, Contrast3)</l>
+<l>    FeatureVector3 := [Energy3, Correlation3, Homogeneity3, Contrast3]</l>
+<l>    sobel_amp (ImagePart2, EdgeAmplitude3, 'sum_abs', 3)</l>
+<l>    gray_histo_abs (Region1, EdgeAmplitude3, 1, AbsoluteHisto3)</l>
+<l>    FeatureVector3 :=[FeatureVector3,AbsoluteHisto3]</l>
+<l>    FeatureVector := real(FeatureVector3)</l>
+<c>    *通过多层感知器计算一个特征向量的类</c>
+<l>    classify_class_mlp (Handle, FeatureVector, 2, FoundClassIDs, Confidence)</l>
+<l>    confidence:=[confidence,Confidence]</l>
+<l>    if (FoundClassIDs[0]==0)</l>
+<c></c>
+<l>        dev_open_window (0, 0, 512, 512, 'black', WindowHandle)</l>
+<l>        dev_display(Image)        </l>
+<l>        disp_message (WindowHandle, ImageFiles[Index], 'window', 0, 0, 'black', 'true')</l>
+<l>        disp_message (WindowHandle, 'Result=bad', 'window', 20, 0, 'black', 'true')</l>
+<l>        stop()    </l>
+<l>    else</l>
+<c>        </c>
+<l>        dev_open_window (0, 0, 512, 512, 'black', WindowHandle)</l>
+<l>        dev_display(Image)</l>
+<l>        disp_message (WindowHandle, ImageFiles[Index], 'window', 0, 0, 'black', 'true')</l>
+<l>        disp_message (WindowHandle, 'Result=good', 'window', 20, 0, 'black', 'true')</l>
+<l>        stop()   </l>
+<l>    endif</l>
+<l>endfor</l>
+<l>stop()</l>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>

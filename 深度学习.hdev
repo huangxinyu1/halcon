@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="18.11.0.1">
+<procedure name="main">
+<interface/>
+<body>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c>* 1.数据准备</c>
+<c>*读取数据集</c>
+<c>*参数（图像目录，提取真实标签的模式，*输出参数---图像元组，图像的标签，由索引表示的标签，独有的类）</c>
+<l>read_dl_classifier_data_set ('D:/ocr_result - 副本', 'last_folder', ImageFiles, GroundTruthLabels, LabelIndices, UniqueClasses)</l>
+<c>*读取预训练网络</c>
+<l>read_dl_classifier ('pretrained_dl_classifier_compact.hdl', DLClassifierHandle)</l>
+<c>*</c>
+<c>* Create the directories for writing the images.</c>
+<c>*创建用于编写映像的图片目录</c>
+<l>PreprocessedFolder := 'mnist_preprocessed'</l>
+<c>*???????????????????</c>
+<l>create_directories (PreprocessedFolder, UniqueClasses)</l>
+<c>*</c>
+<c>* Prepare the new image names.</c>
+<c>*准备新的映像名称</c>
+<c>*参数（输入文件名，输出参数-----没有目录描述和文件扩展名的文件名，文件扩展名，目录路径）</c>
+<l>parse_filename (ImageFiles, BaseNames, Extensions, Directories)</l>
+<l>ObjectFilesOut := PreprocessedFolder + '/' + GroundTruthLabels + '/' + BaseNames + '.hobj'</l>
+<c>*</c>
+<c>* Loop through all images,</c>
+<c>* preprocess and then write them.</c>
+<c>*变历图像并预处理显示</c>
+<l>for ImageIndex := 0 to |ImageFiles|-1 by 1</l>
+<l>    read_image (Image, ImageFiles[ImageIndex])</l>
+<c>    *图像预处理</c>
+<c>    *参数（图像，）</c>
+<c>    *？？？？？？？？？？？？？？？？？？？？？？</c>
+<l>    preprocess_pill_image (Image, ImagePreprocessed, DLClassifierHandle)</l>
+<c>    *把预处理图像，写入文件中</c>
+<l>    write_object (ImagePreprocessed, ObjectFilesOut[ImageIndex])</l>
+<l>endfor</l>
+<c></c>
+<c></c>
+<c>*文件2</c>
+<c>* 训练和识别</c>
+<c>*????????????????????????????????????????</c>
+<l>init_program (WindowHandle)</l>
+<c>*</c>
+<c>* ** Training **</c>
+<c>*</c>
+<c>* Read the classifier and the preprocessed data.</c>
+<c>*读取分类器和预处理数据</c>
+<l>read_dl_classifier ('pretrained_dl_classifier_compact.hdl', DLClassifierHandle)</l>
+<c>* The best classifier (according to the validation error)</c>
+<c>* is saved during training.</c>
+<c></c>
+<l>BestClassifier := 'classifier_mnist.hdl'</l>
+<c>*读取数据集</c>
+<c>*参数（图像目录，提取真实标签的模式，*输出参数---图像元组，图像的标签，由索引表示的标签，独有的类）</c>
+<l>read_dl_classifier_data_set ('mnist_preprocessed', 'last_folder', ImageFiles, GroundTruthLabels, LabelIndices, UniqueClasses)</l>
+<c>* Set the classes the classifier should distinguish.</c>
+<c>*设置参数</c>
+<c>*参数（所用分类器，通用参数名称，泛型参数的值）</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'classes', UniqueClasses)</l>
+<l>*set_dl_classifier_param (DLClassifierHandle, 'runtime', 'cpu')</l>
+<c></c>
+<c>*拆分为三个子数据集</c>
+<c>*参数（图像路径的元组，图像的标签，训练数据的百分比，验证数据的百分比，输出参数---训练的图像，训练图像的真实标签，验证图像，验证图像的真实标签，测试图像，测试图形的真实标签）</c>
+<l>split_dl_classifier_data_set (ImageFiles, GroundTruthLabels, 70, 15, TrainingImages, TrainingLabels, ValidationImages, ValidationLabels, TestImages, TestLabels)</l>
+<c>*</c>
+<c>*为适应您的应用程序如下因素下训练参数：</c>
+<c>*训练的数量确定了训练的持续时间。</c>
+<l>NumEpochs := 20</l>
+<c>*每第n个时期绘制训练和验证错误。</c>
+<l>PlotEveryNthEpoch := 0.5</l>
+<c>*</c>
+<c>* 使用硬件将batch_size设置得尽可能高。</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'batch_size', 32)</l>
+<l>set_dl_classifier_param (DLClassifierHandle, 'runtime_init', 'immediately')</l>
+<c>*</c>
+<c>* 设置初始学习率。</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'learning_rate', 0.001)</l>
+<c>* 定期降低学习率以理想地调整分类器。</c>
+<l>LearningRateStepEveryNthEpoch := 6</l>
+<l>LearningRateStepRatio := 0.1</l>
+<c>*</c>
+<c>*此本地程序封装了训练和可视化</c>
+<c>* HDevelop示例classify_pill_defects_deep_learning.hdev。</c>
+<l>train_dl_classifier_plot_progress (TrainingImages, TrainingLabels, ValidationImages, ValidationLabels, NumEpochs, PlotEveryNthEpoch, DLClassifierHandle, WindowHandle, BestClassifier, LearningRateStepEveryNthEpoch, LearningRateStepRatio)</l>
+<l>stop ()</l>
+<c>*</c>
+<c>* ** 评估 **</c>
+<c>*</c>
+<c>* 读取训练中的最佳分类器。</c>
+<c>*参数（训练的神经网络名，输出最优模型名）</c>
+<l>read_dl_classifier (BestClassifier, DLClassifierHandle)</l>
+<c>*</c>
+<c>* 生成验证数据的混淆矩阵。</c>
+<l>read_image (ImagesValidation, ValidationImages)</l>
+<c>*基于深度学习推断一类图像的关系</c>
+<c>*参数（图像元组，深度学习用到的分类器，输出参数--分类结果）</c>
+<l>apply_dl_classifier (ImagesValidation, DLClassifierHandle, DLClassifierResultHandle)</l>
+<c>*检索由基于深度学习的分类器推断的分类结果。</c>
+<c>*参数（深度学习的分类结果，批次处理的图像索引，通用参数名称，输出---泛型参数的值/置信度值/类名称或类索引）</c>
+<l>get_dl_classifier_result (DLClassifierResultHandle, 'all', 'predicted_classes', ValidationPredictedClasses)</l>
+<l>dev_open_window (0, 0, 512, 512, 'black', WindowHandle)</l>
+<c>*得到可视化的混淆矩阵</c>
+<c>*参数（正确的标签，分类器预测的类，矩阵的参数，举证参数的值，显示窗口的句柄，输出----产生混淆矩阵）</c>
+<l>gen_confusion_matrix (ValidationLabels, ValidationPredictedClasses, [], [], WindowHandle, ConfusionMatrix)</l>
+<l>stop ()</l>
+<c></c>
+<c>*显示并返回分类图像</c>
+<c>*参数（输出参数--选定的图像，输出参数---图像路径的元组，正确的标签，分类器预测的类，图像参数设置，如何显示，显示窗口）</c>
+<c></c>
+<l>get_dl_classifier_image_results (ImagesValidation, ValidationImages, ValidationLabels, ValidationPredictedClasses, [], [], WindowHandle)</l>
+<c>*</c>
+<c>* 使用测试图像显示一些示例性热图。</c>
+<l>for ImageIndex := 0 to 20 by 1</l>
+<l>    read_image (TestImage, TestImages[ImageIndex])</l>
+<c>    *已被修改此过程gen变为下面的了</c>
+<l>    *gen_dl_classifier_heatmap (TestImage, HeatmapRegions, DLClassifierHandle, ['feature_size'], [70], WindowHandle)</l>
+<c>    *可视化并返回深度学习分类的热图。</c>
+<c>    *参数（计算热图的图像，深度学习的分类器，设置的一些参数，参数所对应的值，显示的窗体）</c>
+<l>    dev_display_dl_classifier_heatmap (TestImage, DLClassifierHandle, ['feature_size'], [70], WindowHandle)</l>
+<l>    stop ()</l>
+<l>endfor</l>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
